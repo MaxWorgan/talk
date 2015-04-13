@@ -327,9 +327,113 @@ def checkAge(age:Int) : Validation[Error,Int] = {
 }
 --
 
-def createMember(name:String, age:Int,email:String) : ValidationNel[String,Member] = {
+def createMember(name:String, age:Int,email:String) : Validation[String,Member] = {
     (checkName(name) |@| checkAge(age) |@| checkEmail(email)) { 
         Member(_,_,_)
     }
 }
+
+---
+
+```
+type Error = String
+
+case class Member(name:String,age:Int,email:String)
+
+def checkEmail(input:String) : Validation[Error, String] = {
+    if(input.contains("sensatus")) input.success
+    else "email wasn't valid".fail 
+}
+
+def checkName(name:String) : Validation[Error,String] = {
+    if(name === "Dave") name.success
+    else "Names not dave".fail
+}
+
+def checkAge(age:Int) : Validation[Error,Int] = {
+    if(age < 18) "too young".fail
+    else if(age > 30) "too old".fail
+    else age.success
+}
+
+def createMember(name:String, age:Int,email:String) : ValidationNel[String,Member] = {
+    (checkName(name).toValidationNel |@| checkAge(age).toValidationNel |@| checkEmail(email).toValidationNel) { 
+        Member(_,_,_)
+    }
+}
+```
+---
+
+| Lenses
+
+--
+Working with immutable data structures can be annoying
+
+--
+
+e.g.
+
+```
+case class Exchange(setting:Settings)
+case class Settings(session:Session)
+case class Session(start:Int,end:Int)
+--
+
+val exchange = Exchange(Settings(Session(1,2)))
+
+val newExchange = exchange.copy(
+    setting = exchange.setting.copy(
+        session = exchange.setting.session.copy(
+            start = exchange.setting.session.start +1
+            )
+        )
+    )
+
+```
+--
+
+Lenses provide a simple way of dealing with them
+
+---
+
+```
+val sessionStart = Lens.lensu[Session, Int](
+    (o,s) => o.copy(start = s),
+    _.start
+)
+
+--
+
+val sessionFromSettings = Lens.lensu[Settings,Session](
+    (o,s) => o.copy(session = s),
+    _.session
+)
+
+--
+
+val settingsFromExchange = Lens.lensu[Exchange, Settings](
+    (o, s) => o.copy(setting = s),
+    _.setting
+)
+
+```
+--
+
+```
+val start = settingsFromExchange >=> sessionFromSettings >=> sessionStart
+
+```
+--
+```
+start.get(exchange)
+```
+--
+```
+start.set(exchange, 10)
+
+```
+---
+
+
+
 
