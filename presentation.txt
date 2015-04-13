@@ -1,0 +1,335 @@
+| \*\gScalaz
+---
+Where scalaz is coming from
+
+FP
+Types (Ad-hoc polymorphism)
+Catagory Theory
+Haskell
+---
+Referential transparency is key
+Pure functions
+No side effects
+No mutable state
+No throwing exceptions
+---
+| \goo vs fp
+
+Classes contain state + functions + data
+Subtype-polymorphism / parametric polymorphism
+
+```
+trait Mammal{
+    val name:String
+    var age:Int
+    def sing() : Unit;
+    def older = age += 1
+    def younger = age -= 1
+}
+
+case class Human(name:String,var age:Int) extends Mammal {
+    def sing() : Unit = {
+        println("la la la")
+    }
+}
+case class Bonobo(name:String,var age:Int) extends Mammal {
+    def sing() : Unit = {
+        println("Oo Oo Oo")
+    }
+}
+
+def makeMammalSing(m:Mammal) = m.sing
+```
+
+---
+Ad-hoc polymorphism
+Algebraic data types 
+Typeclasses
+FP structures: Functors, Monads, Moniods, e.t.c.
+---
+
+Deriving scalaz (Nick Partridge)
+
+--
+from: 
+```
+def sum(xs:List[Int]) : Int 
+```
+--
+
+to: 
+```
+def sum[M[_],A](xs: M[A])(...):A
+```
+
+---
+
+```
+def sum(xs:List[Int]) : Int = xs.foldLeft(0)((a,b) => a + b)
+```
+
+---
+```
+def sum(xs:Traversable[Int]) : Int
+```
+
+| \g???
+
+---
+
+```
+object IntMonoid = {
+    def mappend(a:Int,b:Int) : Int = a + b
+    val mzero = 0
+}
+
+def sum(xs:List[Int]) : Int = 
+    xs.foldLeft(IntMonoid.mzero)(IntMonoid.mappend)
+```
+---
+
+```
+trait Monoid[A] {
+    def mappend(a:A,b:A) : A
+    def mzero : A
+}
+
+object IntMonoid extends Monoid[Int] {
+    def mappend(a:Int,b:Int) : Int = a + b
+    val mzero = 0
+}
+
+def sum(xs:List[Int],m:Monoid[Int]) : Int = 
+    xs.foldLeft(m.mzero)(m.mappend)
+```
+---
+```
+trait Monoid[A] {
+    def mappend(a:A,b:A) : A
+    def mzero : A
+}
+
+object IntMonoid extends Monoid[Int] {
+    def mappend(a:Int,b:Int) : Int = a + b
+    val mzero = 0
+}
+
+def sum[T](xs:List[T],m:Monoid[T]) : T = 
+    xs.foldLeft(m.mzero)(m.mappend)
+```
+---
+```
+trait Monoid[A] {
+    def mappend(a:A,b:A) : A
+    def mzero : A
+}
+
+implicit object IntMonoid extends Monoid[Int] {
+    def mappend(a:Int,b:Int) : Int = a + b
+    val mzero = 0
+}
+
+def sum[T](xs:List[T])(implicit m:Monoid[T]) : T = 
+    xs.foldLeft(m.mzero)(m.mappend)
+```
+---
+```
+trait Monoid[A] {
+    def mappend(a:A,b:A) : A
+    def mzero : A
+}
+
+implicit object IntMonoid extends Monoid[Int] {
+    def mappend(a:Int,b:Int) : Int = a + b
+    val mzero = 0
+}
+
+def sum[T:Monoid](xs:List[T]) : T = {
+    val m = implicitly[Monoid[T]]
+    xs.foldLeft(m.mzero)(m.mappend)
+}
+```
+---
+```
+trait Monoid[A] {
+    def mappend(a:A,b:A) : A
+    def mzero : A
+}
+
+implicit object IntMonoid extends Monoid[Int] {
+    def mappend(a:Int,b:Int) : Int = a + b
+    val mzero = 0
+}
+
+implicit object StringMonoid extends Monoid[String] {
+    def mappend(a:String,b:String) : String = a + b
+    val mzero = ""
+}
+
+def sum[T:Monoid](xs:List[T]) : T = {
+    val m = implicitly[Monoid[T]]
+    xs.foldLeft(m.mzero)(m.mappend)
+}
+```
+---
+```
+trait Monoid[A] {
+    def mappend(a:A,b:A) : A
+    def mzero : A
+}
+
+implicit object IntMonoid extends Monoid[Int] {
+    def mappend(a:Int,b:Int) : Int = a + b
+    val mzero = 0
+}
+
+implicit object MultIntMonoid extends Monoid[Int] {
+    def mappend(a:Int,b:Int) : Int = a * b
+    val mzero = 1
+}
+
+implicit object StringMonoid extends Monoid[String] {
+    def mappend(a:String,b:String) : String = a + b
+    val mzero = ""
+}
+
+def sum[T:Monoid](xs:List[T]) : T = {
+    val m = implicitly[Monoid[T]]
+    xs.foldLeft(m.mzero)(m.mappend)
+}
+```
+---
+```
+trait FoldLeft[F[_]]{
+    def foldLeft[A,B](xs: F[A], z: B, f: (B,A) => B) : B
+}
+
+--
+
+implicit object ListFoldLeft extends FoldLeft[List] {
+    def foldLeft[A,B](xs: List[A], z: B, f: (B,A) => B) : B =
+        xs.foldLeft(z)(f)
+}
+
+trait Monoid[A] {
+    def mappend(a:A,b:A) : A
+    def mzero : A
+}
+
+implicit object IntMonoid extends Monoid[Int] {
+    def mappend(a:Int,b:Int) : Int = a + b
+    val mzero = 0
+}
+
+def sum[M[_]:FoldLeft, T:Monoid](xs:M[T]) : T = {
+    val m = implicitly[Monoid[T]]
+    val f = implicitly[FoldLeft[M]]
+    f.foldLeft(xs,m.mzero,m.mappend)
+}
+```
+---
+| \g Making it nice
+--
+
+| Scalaz provides lots of syntax to make this as easy to use as possible
+
+```
+import scalaz._
+import Scalaz._
+
+10 |+| 10
+"abc" |+| "123"
+(10,100) |+| (20,200)
+```
+---
+| \gTypeclasses
+| \gAd-hoc Polymorphism
+| \rAgebraic Datatypes
+
+--
+Subtype polymorphism leads to classes (data) being enriched with behaviour.
+
+The class is an X therefore it has X behaviour
+
+--
+Ad-hoc Polymorphism does not. It leads to data as pure data and behaviour being ascribed it.
+
+The data has an instance of X which provides it with X behavour
+---
+
+Scalaz provides lots of useful Typeclasses.
+
+Some are replacements for stdlib:
+
+--
+Equals (===)
+--
+Order (?|?)
+--
+Show (.show)
+--
+
+Others are from CT:
+
+--
+Functor, Applicative
+--
+(Co|State|Reader|Writer)Monad e.t.c
+--
+MonadTransformer
+
+---
+
+Also provides new datatypes.
+
+Some are replacements for stdlib:
+
+--
+Maybe (Option)
+--
+\/ (Either)
+--
+IList (List)
+--
+
+Others are new/ from CT:
+
+--
+NonEmptyList
+--
+Validation
+--
+Lens
+--
+Zipper
+--
+TagTypes
+---
+```
+type Error = String
+
+case class Member(name:String,age:Int,email:String)
+
+def checkEmail(input:String) : Validation[Error, String] = {
+    if(input.contains("sensatus")) input.success
+    else "email wasn't valid".fail 
+}
+
+def checkName(name:String) : Validation[Error,String] = {
+    if(name === "Dave") name.success
+    else "Names not dave".fail
+}
+
+def checkAge(age:Int) : Validation[Error,Int] = {
+    if(age < 18) "too young".fail
+    else if(age > 30) "too old".fail
+    else age.success
+}
+--
+
+def createMember(name:String, age:Int,email:String) : ValidationNel[String,Member] = {
+    (checkName(name) |@| checkAge(age) |@| checkEmail(email)) { 
+        Member(_,_,_)
+    }
+}
+
